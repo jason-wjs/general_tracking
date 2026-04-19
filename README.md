@@ -4,21 +4,7 @@
 
 The project goal is to reimplement the G1 `bm_l2c2` experiment from
 [NVlabs/ProtoMotions](https://github.com/NVlabs/ProtoMotions), specifically
-`examples/experiments/mimic/mlp_bm_l2c2.py`, as a separate downstream project
-instead of a fork of `mjlab` or ProtoMotions.
-
-This repository focuses on one scope only:
-
-- G1 robot
-- general motion tracking
-- `bm_l2c2`-style training recipe
-- `mjlab` as the only simulator/runtime backend
-
-## What This Repository Is
-
-This is not a line-by-line port of ProtoMotions internals.
-
-It is a semantic reimplementation on top of `mjlab`, preserving the parts of
+`examples/experiments/mimic/mlp_bm_l2c2.py`, as a semantic reimplementation on top of `mjlab`, preserving the parts of
 the ProtoMotions G1 general tracker that matter for training behavior:
 
 - ProtoMotions-style reduced actor observations and max-coords critic observations
@@ -50,12 +36,9 @@ The main pieces mirrored here are:
 - PPO setup: fixed hyperparameters, dual optimizer handling, no adaptive LR
 - evaluator: periodic full-motion sweep and motion-weight update
 
-## `bm_l2c2` vs Official BeyondMimic `bm`
+## `bm_l2c2` vs Official BeyondMimic 
 
-In short, `bm_l2c2` is not just “BeyondMimic plus one loss term”. It is a
-different training recipe around the same motion-tracking core.
-
-Compared with the official BeyondMimic-style `bm` setup, ProtoMotions
+ProtoMotions
 `bm_l2c2` changes the training recipe in a few important ways:
 
 1. `L2C2` adds a clean/noisy actor pairing.
@@ -83,13 +66,6 @@ Compared with the official BeyondMimic-style `bm` setup, ProtoMotions
    ProtoMotions periodically sweeps all motions, records tracking metrics, and
    updates motion sampling weights based on failure signals. This is different
    from the original single-motion or simpler BM training setups.
-
-So the relationship is:
-
-- official `bm`: the original BeyondMimic tracking baseline
-- ProtoMotions `bm_l2c2`: a stronger general-tracker recipe built on BM ideas
-- this repository: an `mjlab` implementation of the ProtoMotions `bm_l2c2`
-  recipe for G1
 
 ## Current Implementation Scope
 
