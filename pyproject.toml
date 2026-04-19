@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "general_tracking"
+version = "0.1.0"
+description = "Downstream mjlab plugin for G1 general motion tracking."
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "mjlab[cu128]>=1.3,<1.4",
+  "PyYAML>=6.0",
+]
+
+[project.scripts]
+gt-train = "general_tracking.cli.train:main"
+gt-play = "general_tracking.cli.play:main"
+gt-build-manifest = "general_tracking.data.cli.build_manifest:main"
+
+[project.entry-points."mjlab.tasks"]
+general_tracking = "general_tracking.tasks.general_tracking.config.g1"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.0",
+  "ruff>=0.11.0",
+  "pyright>=1.1.400",
+]
+
+[tool.ruff]
+src = ["src", "tests"]
+indent-width = 2
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+ignore = ["B008"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+venvPath = "."
+venv = ".venv"
+include = ["src", "tests"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
