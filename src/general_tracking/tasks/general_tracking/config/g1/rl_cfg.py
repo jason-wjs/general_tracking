@@ -110,6 +110,7 @@ def unitree_g1_general_tracking_runner_cfg() -> RslRlBaseRunnerCfg:
       evaluation_components={"anchor_height_error": {"threshold": 0.25}},
     ),
     experiment_name="g1_general_tracking",
+    wandb_project="whole_body_tracking",
     save_interval=500,
     num_steps_per_env=24,
     max_iterations=30_000,

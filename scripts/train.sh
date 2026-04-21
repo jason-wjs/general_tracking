@@ -9,6 +9,6 @@ cd "${REPO_ROOT}"
 uv run gt-train \
   --task GeneralTracking-Flat-Unitree-G1 \
   --motion-lib-path "${DATA_DIR}/motion_manifest.yaml" \
-  --num-envs 4096 \
+  --num-envs 16384 \
   --max-iterations 30000 \
   "$@"
