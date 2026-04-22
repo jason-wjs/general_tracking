@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import os
 import time
 
 import torch
-from mjlab.rl import MjlabOnPolicyRunner
+from mjlab.envs import ManagerBasedRlEnv
+from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from rsl_rl.runners.on_policy_runner import check_nan
 
 from general_tracking.tasks.general_tracking.rl.evaluator import (
@@ -30,9 +32,17 @@ class GeneralTrackingOnPolicyRunner(MjlabOnPolicyRunner):
         MotionSuccessEvaluatorCfg(**evaluator_cfg),
         self.env,
         log_dir,
+        eval_vec_env_factory=self._build_eval_vec_env,
       )
     else:
       self.evaluator = None
+
+  def _build_eval_vec_env(self, num_envs: int):
+    env_cfg = deepcopy(self.env.unwrapped.cfg)
+    env_cfg.scene.num_envs = num_envs
+    env_cfg.auto_reset = False
+    eval_env = ManagerBasedRlEnv(cfg=env_cfg, device=str(self.env.device))
+    return RslRlVecEnvWrapper(eval_env, clip_actions=self.env.clip_actions)
 
   def learn(self, num_learning_iterations: int, init_at_random_ep_len: bool = False) -> None:
     if init_at_random_ep_len:
@@ -51,49 +61,53 @@ class GeneralTrackingOnPolicyRunner(MjlabOnPolicyRunner):
 
     start_it = self.current_learning_iteration
     total_it = start_it + num_learning_iterations
-    for it in range(start_it, total_it):
-      start = time.time()
-      with torch.inference_mode():
-        for _ in range(self.cfg["num_steps_per_env"]):
-          actions = self.alg.act(obs)
-          obs, rewards, dones, extras = self.env.step(actions.to(self.env.device))
-          if self.cfg.get("check_for_nan", True):
-            check_nan(obs, rewards, dones)
-          obs = obs.to(self.device)
-          rewards = rewards.to(self.device)
-          dones = dones.to(self.device)
-          self.alg.process_env_step(obs, rewards, dones, extras)
-          self.logger.process_env_step(rewards, dones, extras, None)
+    try:
+      for it in range(start_it, total_it):
+        start = time.time()
+        with torch.inference_mode():
+          for _ in range(self.cfg["num_steps_per_env"]):
+            actions = self.alg.act(obs)
+            obs, rewards, dones, extras = self.env.step(actions.to(self.env.device))
+            if self.cfg.get("check_for_nan", True):
+              check_nan(obs, rewards, dones)
+            obs = obs.to(self.device)
+            rewards = rewards.to(self.device)
+            dones = dones.to(self.device)
+            self.alg.process_env_step(obs, rewards, dones, extras)
+            self.logger.process_env_step(rewards, dones, extras, None)
+
+          stop = time.time()
+          collect_time = stop - start
+          start = stop
+          self.alg.compute_returns(obs)
+
+        loss_dict = self.alg.update()
+        if self.evaluator is not None and it > 0 and it % self.evaluator.cfg.eval_metrics_every == 0:
+          loss_dict.update(self.evaluator.run_eval(policy=self.alg.get_policy(), iteration=it))
+          obs = self.env.get_observations().to(self.device)
+          self.alg.train_mode()
 
         stop = time.time()
-        collect_time = stop - start
-        start = stop
-        self.alg.compute_returns(obs)
+        learn_time = stop - start
+        self.current_learning_iteration = it
 
-      loss_dict = self.alg.update()
-      if self.evaluator is not None and it > 0 and it % self.evaluator.cfg.eval_metrics_every == 0:
-        loss_dict.update(self.evaluator.run_eval(policy=self.alg.get_policy(), iteration=it))
-        obs = self.env.get_observations().to(self.device)
-        self.alg.train_mode()
+        self.logger.log(
+          it=it,
+          start_it=start_it,
+          total_it=total_it,
+          collect_time=collect_time,
+          learn_time=learn_time,
+          loss_dict=loss_dict,
+          learning_rate=self.alg.learning_rate,
+          action_std=self.alg.get_policy().output_std,
+          rnd_weight=None,
+        )
 
-      stop = time.time()
-      learn_time = stop - start
-      self.current_learning_iteration = it
-
-      self.logger.log(
-        it=it,
-        start_it=start_it,
-        total_it=total_it,
-        collect_time=collect_time,
-        learn_time=learn_time,
-        loss_dict=loss_dict,
-        learning_rate=self.alg.learning_rate,
-        action_std=self.alg.get_policy().output_std,
-        rnd_weight=None,
-      )
-
-      if self.logger.writer is not None and it % self.cfg["save_interval"] == 0:
-        self.save(os.path.join(self.logger.log_dir, f"model_{it}.pt"))  # type: ignore[arg-type]
+        if self.logger.writer is not None and it % self.cfg["save_interval"] == 0:
+          self.save(os.path.join(self.logger.log_dir, f"model_{it}.pt"))  # type: ignore[arg-type]
+    finally:
+      if self.evaluator is not None:
+        self.evaluator.close()
 
     if self.logger.writer is not None:
       self.save(os.path.join(self.logger.log_dir, f"model_{self.current_learning_iteration}.pt"))  # type: ignore[arg-type]
