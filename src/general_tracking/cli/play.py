@@ -12,6 +12,12 @@ def _build_parser() -> argparse.ArgumentParser:
   parser.add_argument("--checkpoint", default=None)
   parser.add_argument("--motion-lib-path", default=os.environ.get("MOTION_LIB_PATH"))
   parser.add_argument("--num-envs", type=int, default=None)
+  parser.add_argument(
+    "--viewer",
+    choices=("auto", "native", "viser"),
+    default="auto",
+    help="Viewer backend (matches mjlab PlayConfig).",
+  )
   return parser
 
 
@@ -26,5 +32,6 @@ def main(argv: list[str] | None = None) -> None:
   cfg = PlayConfig(
     checkpoint_file=args.checkpoint,
     num_envs=args.num_envs,
+    viewer=args.viewer,
   )
   run_play(args.task, cfg)
